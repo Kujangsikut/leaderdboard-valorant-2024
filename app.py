@@ -1,33 +1,75 @@
+# Import necessary libraries
 import streamlit as st
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
 
 # Load dataset
-def load_data():
-    file_path = "cleaned_dataset.xlsx"  # Use relative path for deployment
-    try:
-        data = pd.read_excel(file_path, sheet_name='Sheet1')
-        return data
-    except FileNotFoundError:
-        st.error(f"File not found: {file_path}")
-        return None
-    except Exception as e:
-        st.error(f"An error occurred: {e}")
-        return None
+@st.cache
+def load_data(file_path):
+    df = pd.read_excel(file_path)
+    columns_to_keep = ["name", "rating", "kd_ratio", "headshot_percent"]
+    data = df[columns_to_keep]
+    data = data.dropna()
 
-data = load_data()
+    def convert_rating(rating):
+        if "Radiant" in str(rating):
+            return 5.0
+        elif "Immortal" in str(rating):
+            return 4.0
+        elif "Diamond" in str(rating):
+            return 3.0
+        elif "Platinum" in str(rating):
+            return 2.0
+        elif "Gold" in str(rating):
+            return 1.0
+        else:
+            return np.nan
 
-if data is not None:
-    # Streamlit App
-    st.title("Leaderboard Application")
-    st.markdown("Use this app to explore player leaderboard based on various metrics.")
+    data["rating"] = data["rating"].apply(convert_rating)
+    return data
 
-    # Sidebar options
-    metric_options = ["rating", "damage_round", "headshot_percent", "aces", "kd_ratio"]
-    selected_metric = st.sidebar.selectbox("Select a metric to sort by:", metric_options)
+# Streamlit UI
+st.title("Player Classification Application")
+uploaded_file = st.file_uploader("Upload your dataset (.xlsx)", type=["xlsx"])
 
-    top_n = st.sidebar.slider("Select number of top players to display:", 5, 50, 10)
+if uploaded_file:
+    data = load_data(uploaded_file)
 
-    # Sort and display leaderboard
-    leaderboard = data.sort_values(by=selected_metric, ascending=False).head(top_n)
-    st.subheader(f"Top {top_n} Players by {selected_metric.capitalize()}")
-    st.table(leaderboard[["name", "tag", selected_metric]])
+    st.subheader("Dataset Preview")
+    st.write(data)
+
+    # Filter options
+    st.sidebar.subheader("Filter Options")
+    filter_type = st.sidebar.selectbox(
+        "Select Filter Type",
+        ["Rating", "KD Ratio", "Headshot Percentage"]
+    )
+
+    num_top_players = st.sidebar.slider(
+        "Number of Top Players to Display",
+        min_value=5,
+        max_value=20,
+        value=10
+    )
+
+    # Apply filtering
+    if filter_type == "Rating":
+        top_players = data.sort_values(by="rating", ascending=False).head(num_top_players)
+    elif filter_type == "KD Ratio":
+        top_players = data.sort_values(by="kd_ratio", ascending=False).head(num_top_players)
+    else:  # Headshot Percentage
+        top_players = data.sort_values(by="headshot_percent", ascending=False).head(num_top_players)
+
+    st.subheader(f"Top {num_top_players} Players by {filter_type}")
+    st.write(top_players)
+
+    # Visualize data
+    st.subheader("Visualization")
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.barh(top_players["name"], top_players[filter_type.lower().replace(" ", "_")], color="skyblue")
+    ax.set_xlabel(filter_type)
+    ax.set_ylabel("Player Name")
+    ax.set_title(f"Top {num_top_players} Players by {filter_type}")
+    st.pyplot(fig)
