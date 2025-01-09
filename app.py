@@ -8,10 +8,12 @@ import matplotlib.pyplot as plt
 @st.cache
 def load_data(file_path):
     df = pd.read_excel(file_path)
+    # Keep relevant columns and handle missing values
     columns_to_keep = ["name", "rating", "kd_ratio", "headshot_percent"]
     data = df[columns_to_keep]
     data = data.dropna()
 
+    # Convert rating to numeric values
     def convert_rating(rating):
         if "Radiant" in str(rating):
             return 5.0
@@ -29,17 +31,20 @@ def load_data(file_path):
     data["rating"] = data["rating"].apply(convert_rating)
     return data
 
+# Path to the dataset
+DATA_FILE = "cleaned_dataset.xlsx"
+
+# Load data
+data = load_data(DATA_FILE)
+
 # Streamlit UI
 st.title("Player Classification Application")
 
-# Load dataset directly
-data_file_path = "cleaned_dataset.xlsx"
-data = load_data(data_file_path)
-
+# Display dataset preview
 st.subheader("Dataset Preview")
 st.write(data)
 
-# Filter options
+# Sidebar filter options
 st.sidebar.subheader("Filter Options")
 filter_type = st.sidebar.selectbox(
     "Select Filter Type",
@@ -53,21 +58,27 @@ num_top_players = st.sidebar.slider(
     value=10
 )
 
-# Apply filtering
-if filter_type == "Rating":
-    top_players = data.sort_values(by="rating", ascending=False).head(num_top_players)
-elif filter_type == "KD Ratio":
-    top_players = data.sort_values(by="kd_ratio", ascending=False).head(num_top_players)
-else:  # Headshot Percentage
-    top_players = data.sort_values(by="headshot_percent", ascending=False).head(num_top_players)
+# Map filter types to actual column names
+column_map = {
+    "Rating": "rating",
+    "KD Ratio": "kd_ratio",
+    "Headshot Percentage": "headshot_percent"
+}
 
+# Select the correct column for filtering
+selected_column = column_map.get(filter_type)
+
+# Get top players
+top_players = data.sort_values(by=selected_column, ascending=False).head(num_top_players)
+
+# Display top players
 st.subheader(f"Top {num_top_players} Players by {filter_type}")
 st.write(top_players)
 
-# Visualize data
+# Visualize top players
 st.subheader("Visualization")
 fig, ax = plt.subplots(figsize=(8, 6))
-ax.barh(top_players["name"], top_players[filter_type.lower().replace(" ", "_")], color="skyblue")
+ax.barh(top_players["name"], top_players[selected_column], color="skyblue")
 ax.set_xlabel(filter_type)
 ax.set_ylabel("Player Name")
 ax.set_title(f"Top {num_top_players} Players by {filter_type}")
